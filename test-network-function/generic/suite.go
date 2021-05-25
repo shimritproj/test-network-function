@@ -25,6 +25,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/test-network-function/test-network-function/test-network-function/identifiers"
+	"github.com/test-network-function/test-network-function/test-network-function/results"
+
 	"github.com/onsi/ginkgo"
 	ginkgoconfig "github.com/onsi/ginkgo/config"
 	"github.com/onsi/gomega"
@@ -282,6 +285,7 @@ var _ = ginkgo.Describe(multusTestsKey, func() {
 // Helper to test that the PUT didn't install new packages after starting, and report through Ginkgo.
 func testFsDiff(masterPodOc, targetPodOc *interactive.Oc) {
 	ginkgo.It(fmt.Sprintf("%s(%s) should not install new packages after starting", targetPodOc.GetPodName(), targetPodOc.GetPodContainerName()), func() {
+		defer results.RecordResult(identifiers.TestUnalteredBaseImageIdentifier)
 		targetPodOc.GetExpecter()
 		containerIDTester := containerid.NewContainerID(defaultTimeout)
 		test, err := tnf.NewTest(targetPodOc.GetExpecter(), containerIDTester, []reel.Handler{containerIDTester}, targetPodOc.GetErrorChannel())
@@ -306,6 +310,7 @@ func testNetworkConnectivity(initiatingPodOc, targetPodOc *interactive.Oc, targe
 		initiatingPodOc.GetPodContainerName(), targetPodOc.GetPodName(), targetPodOc.GetPodContainerName(),
 		targetPodIPAddress), func() {
 		ginkgo.It(fmt.Sprintf("%s(%s) should reply", targetPodOc.GetPodName(), targetPodOc.GetPodContainerName()), func() {
+			defer results.RecordResult(identifiers.TestICMPv4ConnectivityIdentifier)
 			testPing(initiatingPodOc, targetPodIPAddress, count)
 		})
 	})
@@ -349,6 +354,7 @@ func testNamespace(oc *interactive.Oc) {
 	container := oc.GetPodContainerName()
 	ginkgo.When(fmt.Sprintf("Reading namespace of %s/%s", pod, container), func() {
 		ginkgo.It("Should not be 'default' and should not begin with 'openshift-'", func() {
+			defer results.RecordResult(identifiers.TestNamespaceBestPracticesIdentifier)
 			gomega.Expect(oc.GetPodNamespace()).To(gomega.Not(gomega.Equal("default")))
 			gomega.Expect(oc.GetPodNamespace()).To(gomega.Not(gomega.HavePrefix("openshift-")))
 		})
@@ -357,7 +363,6 @@ func testNamespace(oc *interactive.Oc) {
 
 func testRoles(podName, podNamespace string) {
 	var serviceAccountName string
-
 	ginkgo.When(fmt.Sprintf("Testing roles and privileges of %s/%s", podNamespace, podName), func() {
 		testServiceAccount(podName, podNamespace, &serviceAccountName)
 		testRoleBindings(podNamespace, &serviceAccountName)
@@ -367,6 +372,7 @@ func testRoles(podName, podNamespace string) {
 
 func testGracePeriod(context *interactive.Context, podName, podNamespace string) {
 	ginkgo.It(fmt.Sprintf("Testing pod terminationGracePeriod %s/%s", podNamespace, podName), func() {
+		defer results.RecordResult(identifiers.TestNonDefaultGracePeriodIdentifier)
 		tester := graceperiod.NewGracePeriod(defaultTimeout, podName, podNamespace)
 		test, err := tnf.NewTest(context.GetExpecter(), tester, []reel.Handler{tester}, context.GetErrorChannel())
 		gomega.Expect(err).To(gomega.BeNil())
@@ -380,9 +386,9 @@ func testGracePeriod(context *interactive.Context, podName, podNamespace string)
 	})
 }
 
-// func testServiceAccount(podName, podNamespace string, serviceAccountName *string) {
 func testNodeSelector(context *interactive.Context, podName, podNamespace string) {
 	ginkgo.It(fmt.Sprintf("Testing pod nodeSelector %s/%s", podNamespace, podName), func() {
+		defer results.RecordResult(identifiers.TestPodNodeSelectorAndAffinityBestPractices)
 		tester := nodeselector.NewNodeSelector(defaultTimeout, podName, podNamespace)
 		test, err := tnf.NewTest(context.GetExpecter(), tester, []reel.Handler{tester}, context.GetErrorChannel())
 		gomega.Expect(err).To(gomega.BeNil())
@@ -493,6 +499,7 @@ func getGrubKernelArgs(context *interactive.Context, nodeName string) map[string
 
 func testBootParams(context *interactive.Context, podName, podNamespace string, targetPodOc *interactive.Oc) {
 	ginkgo.It(fmt.Sprintf("Testing boot params for the pod's node %s/%s", podNamespace, podName), func() {
+		defer results.RecordResult(identifiers.TestUnalteredStartupBootParamsIdentifier)
 		nodeName := getPodNodeName(context, podName, podNamespace)
 		mcName := getMcName(context, nodeName)
 		mcKernelArgumentsMap := getMcKernelArguments(context, mcName)
@@ -512,6 +519,7 @@ func testBootParams(context *interactive.Context, podName, podNamespace string, 
 
 func testServiceAccount(podName, podNamespace string, serviceAccountName *string) {
 	ginkgo.It("Should have a valid ServiceAccount name", func() {
+		defer results.RecordResult(identifiers.TestPodServiceAccountBestPracticesIdentifier)
 		context := getContext()
 		tester := serviceaccount.NewServiceAccount(defaultTimeout, podName, podNamespace)
 		test, err := tnf.NewTest(context.GetExpecter(), tester, []reel.Handler{tester}, context.GetErrorChannel())
@@ -526,6 +534,7 @@ func testServiceAccount(podName, podNamespace string, serviceAccountName *string
 
 func testRoleBindings(podNamespace string, serviceAccountName *string) {
 	ginkgo.It("Should not have RoleBinding in other namespaces", func() {
+		defer results.RecordResult(identifiers.TestPodRoleBindingsBestPracticesIdentifier)
 		if *serviceAccountName == "" {
 			ginkgo.Skip("Can not test when serviceAccountName is empty. Please check previous tests for failures")
 		}
@@ -544,6 +553,7 @@ func testRoleBindings(podNamespace string, serviceAccountName *string) {
 
 func testClusterRoleBindings(podNamespace string, serviceAccountName *string) {
 	ginkgo.It("Should not have ClusterRoleBindings", func() {
+		defer results.RecordResult(identifiers.TestPodClusterRoleBindingsBestPracticesIdentifier)
 		if *serviceAccountName == "" {
 			ginkgo.Skip("Can not test when serviceAccountName is empty. Please check previous tests for failures")
 		}
@@ -563,6 +573,7 @@ func testClusterRoleBindings(podNamespace string, serviceAccountName *string) {
 func testNodePort(podNamespace string) {
 	ginkgo.When(fmt.Sprintf("Testing services in namespace %s", podNamespace), func() {
 		ginkgo.It("Should not have services of type NodePort", func() {
+			defer results.RecordResult(identifiers.TestServicesDoNotUseNodeportsIdentifier)
 			context := getContext()
 			tester := nodeport.NewNodePort(defaultTimeout, podNamespace)
 			test, err := tnf.NewTest(context.GetExpecter(), tester, []reel.Handler{tester}, context.GetErrorChannel())
@@ -593,6 +604,7 @@ func testTainted() {
 		})
 
 		ginkgo.It("Should not have tainted nodes", func() {
+			defer results.RecordResult(identifiers.TestNonTaintedNodeKernelsIdentifier)
 			if len(nodeNames) == 0 {
 				ginkgo.Skip("Can't test tainted nodes when list of nodes is empty. Please check previous tests.")
 			}
@@ -644,6 +656,7 @@ func testHugepages() {
 			clusterHugepagesz = tester.GetHugepagesz()
 		})
 		ginkgo.It("Should have same configuration as cluster", func() {
+			defer results.RecordResult(identifiers.TestHugepagesNotManuallyManipulated)
 			var badNodes []string
 			for _, node := range nodeNames {
 				context := getContext()
@@ -686,6 +699,7 @@ func testDeployments(namespace string) {
 			nodesSorted = getDeploymentsNodes(namespace)
 		})
 		ginkgo.It("should create new replicas when node is drained", func() {
+			defer results.RecordResult(identifiers.TestPodRecreationIdentifier)
 			if !ready {
 				ginkgo.Skip("Can not test when deployments are not ready")
 			}
@@ -786,6 +800,7 @@ func getContext() *interactive.Context {
 func testOwner(podNamespace, podName string) {
 	ginkgo.When("Testing owners of CNF pod", func() {
 		ginkgo.It("Should contain at least one of kind DaemonSet/ReplicaSet", func() {
+			defer results.RecordResult(identifiers.TestPodDeploymentBestPracticesIdentifier)
 			context := getContext()
 			tester := owners.NewOwners(defaultTimeout, podNamespace, podName)
 			test, err := tnf.NewTest(context.GetExpecter(), tester, []reel.Handler{tester}, context.GetErrorChannel())

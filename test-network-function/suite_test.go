@@ -25,6 +25,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
+	"github.com/test-network-function/test-network-function/test-network-function/results"
+
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
@@ -122,7 +126,10 @@ func TestTest(t *testing.T) {
 	junitMap[extraInfoKey] = tnf.TestsExtraInfo
 
 	endTime := time.Now()
-	claimData.Results = junitMap
+	claimData.RawResults = junitMap
+	resultMap, err := junit.ExtractTestSuiteResults(junitMap, reportKeyName)
+	assert.Nil(t, err)
+	claimData.Results = results.GetReconciledResults(resultMap)
 
 	conf := config.GetConfigInstance()
 	configurations, err := j.Marshal(conf)
